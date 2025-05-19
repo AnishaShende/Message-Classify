@@ -32,13 +32,53 @@ label_mapping = {
 
 @app.route('/classify', methods=['POST'])
 def classify_message():
+    """Classify a single message"""
     # Get message from request
     data = request.json
     if not data or 'message' not in data:
         return jsonify({"error": "Please provide a message to classify"}), 400
     
     message = data['message']
+    result = _classify_single_message(message)
+    return jsonify(result)
+
+@app.route('/classify_batch', methods=['POST'])
+def classify_batch():
+    """Classify an array of messages"""
+    # Get messages from request
+    data = request.json
+    if not data or 'messages' not in data:
+        return jsonify({"error": "Please provide an array of messages to classify"}), 400
     
+    messages = data['messages']
+    
+    # Validate input
+    if not isinstance(messages, list):
+        return jsonify({"error": "The 'messages' field must be an array"}), 400
+    
+    if len(messages) == 0:
+        return jsonify({"error": "The messages array cannot be empty"}), 400
+    
+    results = []
+    for message in messages:
+        if not isinstance(message, str):
+            # Skip non-string messages with a warning
+            results.append({
+                "message": str(message),
+                "error": "Invalid message type. Expected string."
+            })
+            continue
+        
+        result = _classify_single_message(message)
+        results.append(result)
+    
+    return jsonify({
+        "results": results,
+        "count": len(results)
+    })
+
+def _classify_single_message(message):
+    """Helper function to classify a single message"""
     # Tokenize message
     inputs = tokenizer(message, return_tensors="pt", truncation=True, padding=True).to(device)
     
@@ -58,7 +98,7 @@ def classify_message():
     predicted_class_name = label_mapping.get(predicted_class, predicted_class)
     
     # Return prediction
-    result = {
+    return {
         "message": message,
         "predicted_class": predicted_class,
         "predicted_class_name": predicted_class_name,
@@ -66,14 +106,24 @@ def classify_message():
         "all_probabilities": {id2label[i]: prob.item() for i, prob in enumerate(probabilities[0])},
         "all_probability_names": {label_mapping.get(id2label[i], id2label[i]): prob.item() for i, prob in enumerate(probabilities[0])}
     }
-    
-    return jsonify(result)
+
+@app.route('/batch_classify', methods=['POST'])
+def batch_classify():
+    """Alternative endpoint name for batch classification"""
+    return classify_batch()
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({"status": "healthy", "model": MODEL_NAME})
+    return jsonify({
+        "status": "healthy", 
+        "model": MODEL_NAME,
+        "device": device.type
+    })
 
 if __name__ == '__main__':
     # Get port from environment variable or use 5000 as default
     port = int(os.environ.get('PORT', 5000))
+    # Print startup message
+    print(f"Starting Message Classification API on port {port}")
+    print(f"Using device: {device}")
     app.run(host='0.0.0.0', port=port)
