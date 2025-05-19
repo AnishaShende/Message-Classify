@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import os
 
 app = Flask(__name__)
+# Enable CORS for all routes and origins
+CORS(app)
 
 # Load model and tokenizer
 MODEL_NAME = "AnishaShende/message-classifier-distilbert"
@@ -126,4 +129,5 @@ if __name__ == '__main__':
     # Print startup message
     print(f"Starting Message Classification API on port {port}")
     print(f"Using device: {device}")
+    print(f"CORS enabled for all origins")
     app.run(host='0.0.0.0', port=port)
